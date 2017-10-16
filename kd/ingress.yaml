@@ -1,0 +1,22 @@
+---
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  annotations:
+    kubernetes.io/tls-acme: "true"
+    ingress.kubernetes.io/secure-backends: "true"
+    ingress.kubernetes.io/whitelist-source-range: "{{.WHITELIST}}"
+  name: pttg-ip-fm-audit-ui
+spec:
+  rules:
+  - host: ip.audit.{{.DNS_PREFIX}}pttg.homeoffice.gov.uk
+    http:
+      paths:
+      - backend:
+          serviceName: pttg-ip-fm-audit-ui
+          servicePort: 443
+        path: /
+  tls:
+  - hosts:
+    - ip.audit.{{.DNS_PREFIX}}pttg.homeoffice.gov.uk
+    secretName: letsencrypt-pttg-ip-fm-audit-ui

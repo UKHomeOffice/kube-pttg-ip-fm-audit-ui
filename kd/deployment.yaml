@@ -1,0 +1,176 @@
+---
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: pttg-ip-fm-audit-ui
+  labels:
+    version: {{.VERSION}}
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      name: pttg-ip-fm-audit-ui
+  strategy:
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 2
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        name: pttg-ip-fm-audit-ui
+        version: {{.VERSION}}
+    spec:
+      containers:
+      - name: vault-sidekick
+        image: quay.io/ukhomeofficedigital/vault-sidekick:v0.2.0
+        imagePullPolicy: Always
+        securityContext:
+           capabilities:
+             drop:
+               - SETUID
+               - SETGID
+        resources:
+         limits:
+          memory: "100Mi"
+          cpu: 100m
+         requests:
+          memory: "50Mi"
+          cpu: 100m
+        args:
+          - -output=/etc/nginx/secrets
+          - -tls-skip-verify=true
+          - -cn=pki:services/${NAMESPACE}/pki/issue/default:common_name=pttg-ip-fm-audit-ui.${NAMESPACE}.svc.cluster.local,file=/etc/nginx/secrets/pttg-ip-fm-audit-ui,fmt=bundle
+        env:
+          - name: VAULT_ADDR
+            value: "https://vault.vault.svc.cluster.local:8200"
+          - name: NAMESPACE
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.namespace
+          - name: VAULT_TOKEN
+            valueFrom:
+              secretKeyRef:
+                name: store-token
+                key: token
+        volumeMounts:
+          - mountPath: /etc/nginx/secrets
+            name: secrets
+      - name: proxy
+        image: quay.io/ukhomeofficedigital/pttg-nginx-proxy:v3.1.3a
+        securityContext:
+           capabilities:
+             drop:
+               - SETUID
+               - SETGID
+        resources:
+         limits:
+          memory: "100Mi"
+          cpu: 100m
+         requests:
+          memory: "50Mi"
+          cpu: 100m
+        env:
+          - name: PROXY_SERVICE_HOST
+            value: '127.0.0.1'
+          - name: PROXY_SERVICE_PORT
+            value: '9000'
+          - name: NAXSI_USE_DEFAULT_RULES
+            value: 'FALSE'
+          - name: ENABLE_UUID_PARAM
+            value: 'FALSE'
+          - name: HTTPS_REDIRECT
+            value: 'FALSE'
+          - name: SERVER_CERT
+            value: /etc/nginx/secrets/pttg-ip-fm-audit-ui-bundle.pem
+          - name: SERVER_KEY
+            value: /etc/nginx/secrets/pttg-ip-fm-audit-ui-key.pem
+          - name: ADD_NGINX_SERVER_CFG
+            value: 'gzip off;'
+        volumeMounts:
+          - name: secrets
+            mountPath: /etc/nginx/secrets
+            readOnly: true
+        ports:
+          - name: https
+            containerPort: 10443
+      - name: keycloak-proxy
+        image: quay.io/ukhomeofficedigital/go-keycloak-proxy:v1.2.7
+        resources:
+         limits:
+          memory: "100Mi"
+          cpu: 100m
+         requests:
+          memory: "50Mi"
+          cpu: 100m
+        env:
+          - name: PROXY_DISCOVERY_URL
+            valueFrom:
+              configMapKeyRef:
+                name: endpoint-config
+                key: PROXY_DISCOVERY_URL
+        args:
+          - --config=/etc/secrets/keycloak-api-secret.yaml
+          - --client-id=pttg-ip-fm-audit-ui-{{.ENVIRONMENT}}
+          - --redirection-url=https://ip.audit.{{.DNS_PREFIX}}pttg.homeoffice.gov.uk
+          - --listen=127.0.0.1:9000
+          - --log-requests=true
+          - --json-logging=true
+          - --upstream-url=http://127.0.0.1:7000
+          - --no-redirects=false
+          - --cors-origins='*'
+          - --resource=uri=/healthz|white-listed=true
+          - --resource=uri=/|methods=GET|roles=pttg-ip-fm-audit-ui
+          - --secure-cookie=true
+          - --http-only-cookie=true
+          - --verbose
+        imagePullPolicy: Always
+        ports:
+          - name: keycloak-http
+            containerPort: 9000
+        volumeMounts:
+        - name: keycloak-api-secret
+          mountPath: /etc/secrets
+          readOnly: true
+        resources:
+          limits:
+            memory: 256Mi
+            cpu: 100m
+      - name: pttg-ip-fm-audit-ui
+        image: quay.io/ukhomeofficedigital/pttg-ip-fm-audit-ui:{{.VERSION}}
+        securityContext:
+           capabilities:
+             drop:
+               - SETUID
+               - SETGID
+        env:
+          - name: API_ROOT
+            value: "https://pttg-ip-audit.pt-i-{{.ENVIRONMENT}}.svc.cluster.local"
+          - name: CA_CERTS_PATH
+            value: "/data/pttg-ip-fm-audit-ui-ca.pem"
+          - name: CLIENT_CERTS_PATH
+            value: "/data/pttg-ip-fm-audit-ui.pem"
+          - name: CLIENT_KEY_PATH
+            value: "/data/pttg-ip-fm-audit-ui-key.pem"
+        resources:
+          limits:
+            cpu: 1000m
+            memory: 400Mi
+          requests:
+            cpu: 200m
+            memory: 100Mi
+        ports:
+          - name: http
+            containerPort: 7000
+        imagePullPolicy: Always
+        volumeMounts:
+          - mountPath: /data
+            name: secrets
+            readOnly: true
+      volumes:
+      - name: secrets
+        emptyDir:
+          medium: "Memory"
+      - name: keycloak-api-secret
+        secret:
+          secretName: keycloak-api-secret
