@@ -152,6 +152,11 @@ spec:
             value: "/data/pttg-ip-fm-audit-ui.pem"
           - name: CLIENT_KEY_PATH
             value: "/data/pttg-ip-fm-audit-ui-key.pem"
+          - name: AUDIT_API_AUTH
+            valueFrom:
+              secretKeyRef:
+                name: pttg-audit-service-secrets
+                key: pttg_ip_audit_ui
         resources:
           limits:
             cpu: 1000m
