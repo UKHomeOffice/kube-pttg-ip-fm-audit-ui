@@ -9,7 +9,7 @@ metadata:
     ingress.kubernetes.io/secure-backends: "true"
     ingress.kubernetes.io/whitelist-source-range: "{{.WHITELIST}}"
     stable.k8s.psg.io/kcm.provider: http
-  name: pttg-ip-fm-ui-ingress-external
+  name: pttg-ip-fm-audit-ui-ingress-external
 spec:
   tls:
   - hosts:
