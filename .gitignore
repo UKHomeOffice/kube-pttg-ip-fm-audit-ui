@@ -1,0 +1,7 @@
+# Created by .ignore support plugin (hsz.mobi)
+.idea
+tmp/kubecfg
+*.iml
+kubectl
+kd_linux_amd64
+.DS_Store

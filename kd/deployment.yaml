@@ -22,47 +22,39 @@ spec:
         version: {{.VERSION}}
     spec:
       containers:
-      - name: vault-sidekick
-        image: quay.io/ukhomeofficedigital/vault-sidekick:v0.2.0
-        imagePullPolicy: Always
+      - name: certs
+        image: quay.io/ukhomeofficedigital/cfssl-sidekick:v0.0.6
         securityContext:
-           capabilities:
-             drop:
-               - SETUID
-               - SETGID
-        resources:
-         limits:
-          memory: "100Mi"
-          cpu: 100m
-         requests:
-          memory: "50Mi"
-          cpu: 100m
+          runAsNonRoot: true
+          capabilities:
+            drop:
+             - SETUID
+             - SETGID
         args:
-          - -output=/etc/nginx/secrets
-          - -tls-skip-verify=true
-          - -cn=pki:services/${NAMESPACE}/pki/issue/default:common_name=pttg-ip-fm-audit-ui.${NAMESPACE}.svc.cluster.local,file=/etc/nginx/secrets/pttg-ip-fm-audit-ui,fmt=bundle
+          - --certs=/certs
+          - --domain=pttg-ip-fm-ui.${KUBE_NAMESPACE}.svc.cluster.local
+          - --expiry=8760h
+          - --command=/usr/local/scripts/trigger_nginx_reload.sh
         env:
-          - name: VAULT_ADDR
-            value: "https://vault.vault.svc.cluster.local:8200"
-          - name: NAMESPACE
+          - name: KUBE_NAMESPACE
             valueFrom:
               fieldRef:
                 fieldPath: metadata.namespace
-          - name: VAULT_TOKEN
-            valueFrom:
-              secretKeyRef:
-                name: store-token
-                key: token
         volumeMounts:
-          - mountPath: /etc/nginx/secrets
-            name: secrets
+          - name: certs
+            mountPath: /certs
+          - name: bundle
+            mountPath: /etc/ssl/certs
+            readOnly: true
       - name: proxy
-        image: quay.io/ukhomeofficedigital/pttg-nginx-proxy:v3.1.3a
+        image: quay.io/ukhomeofficedigital/nginx-proxy:v3.2.9
+        imagePullPolicy: Always
         securityContext:
-           capabilities:
-             drop:
-               - SETUID
-               - SETGID
+          runAsNonRoot: true
+          capabilities:
+            drop:
+             - SETUID
+             - SETGID
         resources:
          limits:
           memory: "100Mi"
@@ -82,20 +74,23 @@ spec:
           - name: HTTPS_REDIRECT
             value: 'FALSE'
           - name: SERVER_CERT
-            value: /etc/nginx/secrets/pttg-ip-fm-audit-ui-bundle.pem
+            value: /certs/tls.pem
           - name: SERVER_KEY
-            value: /etc/nginx/secrets/pttg-ip-fm-audit-ui-key.pem
+            value: /certs/tls-key.pem
           - name: ADD_NGINX_SERVER_CFG
-            value: 'gzip off;'
+            value: 'gzip off; location = /reload { allow 127.0.0.1; deny all; content_by_lua_block { os.execute("touch /tmp/nginx-reload-triggered; /usr/local/openresty/nginx/sbin/nginx -s reload; touch /tmp/nginx-reload-complete;") } }'
         volumeMounts:
-          - name: secrets
-            mountPath: /etc/nginx/secrets
+          - name: certs
+            mountPath: /certs
             readOnly: true
         ports:
           - name: https
             containerPort: 10443
       - name: keycloak-proxy
-        image: quay.io/ukhomeofficedigital/go-keycloak-proxy:v1.2.7
+        image: quay.io/ukhomeofficedigital/go-keycloak-proxy:v2.1.1
+        imagePullPolicy: Always
+        securityContext:
+          runAsNonRoot: true
         resources:
          limits:
           memory: "100Mi"
@@ -103,28 +98,23 @@ spec:
          requests:
           memory: "50Mi"
           cpu: 100m
-        env:
-          - name: PROXY_DISCOVERY_URL
-            valueFrom:
-              configMapKeyRef:
-                name: endpoint-config
-                key: PROXY_DISCOVERY_URL
         args:
           - --config=/etc/secrets/keycloak-api-secret.yaml
-          - --client-id=pttg-ip-fm-audit-ui-{{.ENVIRONMENT}}
-          - --redirection-url=https://ip.audit.{{.DNS_PREFIX}}pttg.homeoffice.gov.uk
+          - --discovery-url=https://sso.digital.homeoffice.gov.uk/auth/realms/{{.KC_REALM}}
+          - --client-id=pttg-ip-fm-{{.ENVIRONMENT}}
           - --listen=127.0.0.1:9000
-          - --log-requests=true
-          - --json-logging=true
-          - --upstream-url=http://127.0.0.1:7000
+          - --enable-logging=true
+          - --enable-json-logging=true
+          - --upstream-url=http://127.0.0.1:8000
+          - --upstream-response-header-timeout=5s
           - --no-redirects=false
+          - --redirection-url=https://{{.DOMAIN_NAME}}
           - --cors-origins='*'
-          - --resource=uri=/healthz|white-listed=true
-          - --resource=uri=/|methods=GET|roles=pttg-ip-fm-audit-ui
+          - --resources=uri=/healthz|white-listed=true
+          - --resources=uri=/*|methods=GET,POST|roles=pttg-ip-fm
           - --secure-cookie=true
           - --http-only-cookie=true
           - --verbose
-        imagePullPolicy: Always
         ports:
           - name: keycloak-http
             containerPort: 9000
@@ -132,31 +122,29 @@ spec:
         - name: keycloak-api-secret
           mountPath: /etc/secrets
           readOnly: true
-        resources:
-          limits:
-            memory: 256Mi
-            cpu: 100m
       - name: pttg-ip-fm-audit-ui
         image: quay.io/ukhomeofficedigital/pttg-ip-fm-audit-ui:{{.VERSION}}
+        imagePullPolicy: Always
         securityContext:
-           capabilities:
-             drop:
-               - SETUID
-               - SETGID
+          runAsNonRoot: true
+          capabilities:
+            drop:
+             - SETUID
+             - SETGID
         env:
-          - name: API_ROOT
-            value: "https://pttg-ip-audit.pt-i-{{.ENVIRONMENT}}.svc.cluster.local"
+          - name: AUDIT_ROOT
+            value: 'https://pttg-ip-audit.pttg-ip-{{.ENVIRONMENT}}.svc.cluster.local'
           - name: CA_CERTS_PATH
-            value: "/data/pttg-ip-fm-audit-ui-ca.pem"
-          - name: CLIENT_CERTS_PATH
-            value: "/data/pttg-ip-fm-audit-ui.pem"
-          - name: CLIENT_KEY_PATH
-            value: "/data/pttg-ip-fm-audit-ui-key.pem"
-          - name: AUDIT_API_AUTH
+            value: "/certs/tls.pem"
+          - name: PROXY_REDIRECTION_URL
+            value: https://{{.DOMAIN_NAME}}
+          - name: FEEDBACK_ROOT
+            value: "https://pttg-feedback.pt-i-{{.ENVIRONMENT}}.svc.cluster.local"
+          - name: PROXY_DISCOVERY_URL
             valueFrom:
-              secretKeyRef:
-                name: pttg-audit-service-secrets
-                key: pttg_ip_audit_ui
+              configMapKeyRef:
+                name: endpoint-config
+                key: PROXY_DISCOVERY_URL
         resources:
           limits:
             cpu: 1000m
@@ -166,16 +154,38 @@ spec:
             memory: 100Mi
         ports:
           - name: http
-            containerPort: 7000
-        imagePullPolicy: Always
+            containerPort: 8000
+        livenessProbe:
+          httpGet:
+            path: /ping
+            port: http
+            httpHeaders:
+              - name: X-probe
+                value: kubelet
+          initialDelaySeconds: 20
+          periodSeconds: 20
+          timeoutSeconds: 10
+        readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+              httpHeaders:
+                - name: X-probe
+                  value: kubelet
+            initialDelaySeconds: 20
+            periodSeconds: 20
+            timeoutSeconds: 10
         volumeMounts:
-          - mountPath: /data
-            name: secrets
+          - mountPath: /certs
+            name: certs
             readOnly: true
       volumes:
-      - name: secrets
-        emptyDir:
-          medium: "Memory"
-      - name: keycloak-api-secret
-        secret:
-          secretName: keycloak-api-secret
+        - name: certs
+          emptyDir:
+            medium: "Memory"
+        - name: keycloak-api-secret
+          secret:
+            secretName: keycloak-api-secret
+        - name: bundle
+          configMap:
+            name: bundle
