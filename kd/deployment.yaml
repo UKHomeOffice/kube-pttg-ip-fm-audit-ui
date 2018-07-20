@@ -32,7 +32,6 @@ spec:
              - SETGID
         args:
           - --certs=/certs
-          - --domain=pttg-ip-fm-ui.${KUBE_NAMESPACE}.svc.cluster.local
           - --domain=pttg-ip-fm-audit-ui.${KUBE_NAMESPACE}.svc.cluster.local
           - --expiry=8760h
           - --command=/usr/local/scripts/trigger_nginx_reload.sh
