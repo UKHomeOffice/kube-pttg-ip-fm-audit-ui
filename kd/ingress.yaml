@@ -14,7 +14,7 @@ spec:
   tls:
   - hosts:
     - {{.DOMAIN_NAME}}
-    secretName: letsencrypt-pttg-ip-fm-ui
+    secretName: letsencrypt-pttg-ip-fm-audit-ui
   rules:
   - host: {{.DOMAIN_NAME}}
     http:
