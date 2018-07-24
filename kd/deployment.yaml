@@ -154,7 +154,7 @@ spec:
             memory: 100Mi
         ports:
           - name: http
-            containerPort: 8000
+            containerPort: 7000
         livenessProbe:
           httpGet:
             path: /ping
