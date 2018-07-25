@@ -99,7 +99,7 @@ spec:
           memory: "50Mi"
           cpu: 100m
         args:
-          - --config=/etc/secrets/keycloak-api-secret.yaml
+          - --config=/etc/secrets/keycloak-api-audit-secret.yaml
           - --discovery-url=https://sso.digital.homeoffice.gov.uk/auth/realms/{{.KC_REALM}}
           - --client-id=pttg-ip-fm-{{.ENVIRONMENT}}
           - --listen=127.0.0.1:9000
