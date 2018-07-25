@@ -185,7 +185,7 @@ spec:
             medium: "Memory"
         - name: keycloak-api-secret
           secret:
-            secretName: keycloak-api-secret
+            secretName: keycloak-api-audit-secret
         - name: bundle
           configMap:
             name: bundle
