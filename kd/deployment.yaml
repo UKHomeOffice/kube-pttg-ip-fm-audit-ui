@@ -183,7 +183,7 @@ spec:
         - name: certs
           emptyDir:
             medium: "Memory"
-        - name: keycloak-api-secret
+        - name: keycloak-api-audit-secret
           secret:
             secretName: keycloak-api-audit-secret
         - name: bundle
