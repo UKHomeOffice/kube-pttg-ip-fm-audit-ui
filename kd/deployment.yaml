@@ -145,6 +145,11 @@ spec:
               configMapKeyRef:
                 name: endpoint-config
                 key: PROXY_DISCOVERY_URL
+          - name: AUDIT_API_AUTH
+            valueFrom:
+              secretKeyRef:
+                name: pttg-audit-service-secrets
+                key: pttg_ip_audit_ui
         resources:
           limits:
             cpu: 1000m
