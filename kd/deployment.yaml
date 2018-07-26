@@ -119,9 +119,9 @@ spec:
           - name: keycloak-http
             containerPort: 9000
         volumeMounts:
-        - name: keycloak-api-audit-secret
-          mountPath: /etc/secrets
-          readOnly: true
+          - name: keycloak-api-audit-secret
+            mountPath: /etc/secrets
+            readOnly: true
       - name: pttg-ip-fm-audit-ui
         image: quay.io/ukhomeofficedigital/pttg-ip-fm-audit-ui:{{.VERSION}}
         imagePullPolicy: Always
