@@ -101,7 +101,7 @@ spec:
         args:
           - --config=/etc/secrets/keycloak-api-audit-secret.yaml
           - --discovery-url=https://sso.digital.homeoffice.gov.uk/auth/realms/{{.KC_REALM}}
-          - --client-id=pttg-ip-fm-{{.ENVIRONMENT}}
+          - --client-id=pttg-ip-fm-audit-ui{{.ENVIRONMENT}}
           - --listen=127.0.0.1:9000
           - --enable-logging=true
           - --enable-json-logging=true
