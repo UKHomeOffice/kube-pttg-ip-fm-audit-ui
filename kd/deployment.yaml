@@ -138,8 +138,8 @@ spec:
             value: "/certs/tls.pem"
           - name: PROXY_REDIRECTION_URL
             value: https://{{.DOMAIN_NAME}}
-          - name: FEEDBACK_ROOT
-            value: "https://pttg-feedback.pt-i-{{.ENVIRONMENT}}.svc.cluster.local"
+          - name: FEEDBACK_EXPORT_ROOT
+            value: "https://pttg-feedback-export.pttg-ip-{{.ENVIRONMENT}}.svc.cluster.local"
           - name: PROXY_DISCOVERY_URL
             valueFrom:
               configMapKeyRef:
@@ -150,6 +150,11 @@ spec:
               secretKeyRef:
                 name: pttg-audit-service-secrets
                 key: pttg_ip_audit_ui
+          - name: FEEDBACK_EXPORT_AUTH
+            valueFrom:
+              secretKeyRef:
+                name: pttg-feedback-export-service-secrets
+                key: pttg_ip_fm_audit_ui
         resources:
           limits:
             cpu: 1000m
