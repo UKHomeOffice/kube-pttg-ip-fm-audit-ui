@@ -106,7 +106,7 @@ spec:
           - --enable-logging=true
           - --enable-json-logging=true
           - --upstream-url=http://127.0.0.1:7000
-          - --upstream-response-header-timeout=5s
+          - --upstream-response-header-timeout=30s
           - --no-redirects=false
           - --redirection-url=https://{{.DOMAIN_NAME}}
           - --cors-origins='*'
